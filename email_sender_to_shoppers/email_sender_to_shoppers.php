@@ -2,10 +2,9 @@
 /*
 Plugin Name: Email Sender to Shoppers
 Plugin URI: http://judicia.com.br
-Description: A plugin to send scheduled emails to allow the shoppers avaluate the purchased products
+Description: A plugin to send scheduled emails to shoppers avaluate the purchased products
 Version: 1.0
 Author: Jadson Ribeiro da Silva
-Author URI: http://exemplo.org
 */
 ?>
 
@@ -19,9 +18,9 @@ add_action('send_email_event', 'print_order_on_period');
 */
 function email_sender_to_shoppers_activate() {
     if(!wp_next_scheduled('send_email_event')){
-        $time_activation = time();
+        $time = rand(240, 360);
         update_option('email_sender_time_activation', $time_activation);
-        wp_schedule_event(time(), 'hourly', 'send_email_event');
+        wp_schedule_event(time()+$time, 'daily', 'send_email_event');
     } 
 }
 
@@ -42,14 +41,14 @@ add_filter( 'wp_mail_content_type', 'set_content_type' );
 
 // SET EMAIL FROM ADDRESS
 function change_mail_from() {
-    return "blabla.com.br";
+    return "cursos@email.com.br";
 }
  
 add_filter ("wp_mail_from", "change_mail_from");
  
 // SET EMAIL FROM NAME
 function change_from_name() {
-    return "Bla bla";
+    return "Prof. Teacher";
 }
  
 add_filter ("wp_mail_from_name", "change_from_name");
@@ -74,11 +73,8 @@ function print_all_comerce_orders($date) {
         'date_query' => $date
     );
 
-    // var_dump($args);
-
     $loop = new WP_Query($args);
     $content = "";
-    $count_items = 0;
 
     wp_reset_postdata();
 
@@ -112,11 +108,8 @@ function print_all_comerce_orders($date) {
             $item_id = $item['product_id'];
 
             $product = new WC_Product($item_id);
-            $product_image = $product->get_image();
+            $product_image = $product->get_image(array(300,300));
             $product_link = $product->get_permalink();
-
-            $line = $item_name.' '.$item_id.' <br/>' ;
-            $content = $content .' '.$order_id.' '.$user_id.' '.$user_name.' '.$user_email.' '.$order_date.' '.$line;
             
             $template_products = $template_products.''.file_get_contents($url_plugin.'/template_email_avaliation_product.html');
             $template_products = str_replace('{product_image}', $product_image, $template_products);
@@ -124,7 +117,6 @@ function print_all_comerce_orders($date) {
             $template_products = str_replace('{product_id}', $item_id, $template_products);
             $template_products = str_replace('{product_name}', $item_name, $template_products);
 
-            $count_items++;
         }
         
         $template_footer = file_get_contents($url_plugin.'/template_email_avaliation_footer.html');
@@ -132,23 +124,25 @@ function print_all_comerce_orders($date) {
         $template = $template_header.''.$template_products.''.$template_footer;
         echo $template;
 
-        $to = "email";
+        //email para log
+        $to = array("email@email.com", $user_email);
         $subject = "Agradecimentos";
         $data = getdate();
 
+        //log
+        $plugin_path = plugin_dir_path( __FILE__ );
+        $log_file = fopen($plugin_path.'log.txt', 'a+');
+        chmod ($plugin_path.'log.txt', 0755);
+
         if(wp_mail($to, $subject, $template, $header)) {
-            //log
-            update_option('email_sender_activeted', 'email sent sucessfully on '.$data['hours'].':'.$data['minutes']);
-            echo 'Email sent sucessfully';
+            update_option('email_sender_activeted', 'email sent sucessfully on '.$data['hours'].':'.$data['minutes'].':'.$data['seconds']);
+            fwrite($log_file, 'o.id: '.$order_id.' email sent sucessfully to '.$user_email.'on '.$data['mday'].'/'.$data['mon'].'/'.$data['year'].' '. $data['hours'].':'.$data['minutes'].':'.$data['seconds']."\n");            
         } else {
-            echo 'Error on sent email';
-            update_option('email_sender_activeted', 'error on sent email on '.$data['hours'].':'.$data['minutes']);
+            update_option('email_sender_activeted', 'error on sent email on '.$data['hours'].':'.$data['minutes'].':'.$data['seconds']);
+            fwrite($log_file, 'o.id: '.$order_id.' error on sent email to '.$user_email.'on '.$data['mday'].'/'.$data['mon'].'/'.$data['year'].' '. $data['hours'].':'.$data['minutes'].':'.$data['seconds']."\n");
         }
 
     }
-
-    //log
-    return $content.'<br/> Numero de Items '.$count_items.'<br/> Data '.$date['day'].'/'.$date['month'].'/'.$date['year'];
 }
 
 function print_date($period){
